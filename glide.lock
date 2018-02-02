@@ -1,0 +1,8 @@
+hash: f4a4a96945a6cae205de30eba44e4d4fd679b5c584e634799b8fd8f5b3377467
+updated: 2018-01-31T13:19:19.500547-06:00
+imports:
+- name: github.com/spaolacci/murmur3
+  version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+- name: github.com/willf/bloom
+  version: 54e3b963ee1652b06c4562cb9b6020ebc6e36e59
+testImports: []

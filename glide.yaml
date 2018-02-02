@@ -1,0 +1,6 @@
+package: github.com/jmhobbs/duplicate-file-finder
+import:
+- package: github.com/spaolacci/murmur3
+  version: ^1.1.0
+- package: github.com/willf/bloom
+  version: ^2.0.3
