@@ -1,8 +1,19 @@
-hash: f4a4a96945a6cae205de30eba44e4d4fd679b5c584e634799b8fd8f5b3377467
-updated: 2018-01-31T13:19:19.500547-06:00
+hash: cd6e80759d6fa12bfaebc260dfea99d5e25f41bf8f5593af9a368f123dd49a65
+updated: 2018-02-04T12:46:37.37363-06:00
 imports:
+- name: github.com/andybalholm/dhash
+  version: 25fc23433e5ba532f4858a203d62696c4640351f
+- name: github.com/andybalholm/go-bit
+  version: 34813fe0e46a87398d88d0315e0f22615592b242
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+- name: github.com/willf/bitset
+  version: 1a37ad96e8c1a11b20900a232874843b5174221f
 - name: github.com/willf/bloom
   version: 54e3b963ee1652b06c4562cb9b6020ebc6e36e59
+- name: gopkg.in/h2non/filetype.v1
+  version: cc14fdc9ca0e4c2bafad7458f6ff79fd3947cfbb
+  subpackages:
+  - matchers
+  - types
 testImports: []

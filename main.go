@@ -3,61 +3,31 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path"
 	"sync"
 
-	"github.com/spaolacci/murmur3"
+	"github.com/andybalholm/dhash"
 	"github.com/willf/bloom"
 )
 
-type Entry struct {
+type ScanError struct {
 	Path string
-	Hash uint64
+	Err  error
 }
 
-func NewEntry(path string) (Entry, error) {
-	e := Entry{path, 0}
-
-	f, err := os.Open(path)
-	if err != nil {
-		return e, err
-	}
-	defer f.Close()
-
-	hash := murmur3.New64()
-
-	buf := make([]byte, 1024)
-	for {
-		n, err := f.Read(buf)
-
-		if n > 0 {
-			hash.Write(buf)
-		}
-
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return e, err
-		}
-	}
-
-	e.Hash = hash.Sum64()
-
-	return e, nil
+func (err ScanError) Error() string {
+	return fmt.Sprintf("%s: %v", err.Path, err.Err)
 }
 
-func Scan(parent_path string, wg *sync.WaitGroup, entries chan Entry) {
+func Scan(parent_path string, wg *sync.WaitGroup, entries chan Entry, errors chan error) {
 	defer wg.Done()
 
 	paths, err := ioutil.ReadDir(parent_path)
 	if err != nil {
-		// TODO: Propagate these
-		log.Printf("error: %s\n", err)
+		errors <- ScanError{parent_path, err}
 		return
 	}
 
@@ -66,11 +36,11 @@ func Scan(parent_path string, wg *sync.WaitGroup, entries chan Entry) {
 
 		if dirent.IsDir() {
 			wg.Add(1)
-			go Scan(fullPath, wg, entries)
+			go Scan(fullPath, wg, entries, errors)
 		} else {
-			e, err := NewEntry(fullPath)
+			e, err := New(fullPath)
 			if err != nil {
-				log.Println("error:", err)
+				errors <- ScanError{fullPath, err}
 			}
 			entries <- e
 		}
@@ -79,16 +49,20 @@ func Scan(parent_path string, wg *sync.WaitGroup, entries chan Entry) {
 
 func main() {
 	base_path := path.Dir(os.Args[1])
-	fmt.Println("Searching for duplicates on path:", base_path, "\n")
+	log.Println("Searching for duplicates on path:", base_path)
 
 	// TODO: Tweak these numbers
 	filter := bloom.New(20000, 5)
 	files := map[uint64]string{}
 	collisions := map[string][]string{}
+	images := map[dhash.Hash]string{}
+	imageCollisions := map[dhash.Hash][]string{}
 
 	var wg sync.WaitGroup
 	entries := make(chan Entry)
+	errors := make(chan error)
 	done := make(chan bool)
+	errDone := make(chan bool)
 
 	go func() {
 		hash_bytes := make([]byte, 8)
@@ -102,22 +76,65 @@ func main() {
 			} else {
 				filter.Add(hash_bytes)
 				files[entry.Hash] = entry.Path
+
+				if entry.IsImage {
+					_, ok := images[entry.DHash]
+					if ok {
+						imageCollisions[entry.DHash] = append(imageCollisions[entry.DHash], entry.Path)
+					} else {
+						matched := false
+						for h, _ := range images {
+							if dhash.Distance(h, entry.DHash) < 10 {
+								// Near DHash match
+								imageCollisions[entry.DHash] = append(imageCollisions[entry.DHash], entry.Path)
+								matched = true
+								break
+							}
+						}
+
+						if !matched {
+							images[entry.DHash] = entry.Path
+						}
+					}
+				}
 			}
 		}
 
 		close(done)
 	}()
 
+	go func() {
+		for err := range errors {
+			log.Println(err)
+		}
+
+		close(errDone)
+	}()
+
 	// Walk the tree
 	wg.Add(1)
-	Scan(base_path, &wg, entries)
+	Scan(base_path, &wg, entries, errors)
 	wg.Wait()
 	close(entries)
+	close(errors)
 
 	<-done
+	<-errDone
 
+	log.Println("Done!", "\n")
+
+	fmt.Println("== Exact Matches\n")
 	for root, cols := range collisions {
 		fmt.Printf("%s\n", root)
+		for _, c := range cols {
+			fmt.Printf("  - %s\n", c)
+		}
+		fmt.Println("")
+	}
+
+	fmt.Println("== Image Visual Matches\n")
+	for root, cols := range imageCollisions {
+		fmt.Printf("%s\n", images[root])
 		for _, c := range cols {
 			fmt.Printf("  - %s\n", c)
 		}
